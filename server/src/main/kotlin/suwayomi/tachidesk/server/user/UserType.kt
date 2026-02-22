@@ -89,7 +89,9 @@ fun getUserFromContext(ctx: Context): UserType {
                                 ctx,
                                 "suwayomi-server-token",
                                 newAccessToken,
-                                serverConfig.jwtRefreshExpiry.value.inWholeSeconds.toInt(),
+                                serverConfig.jwtRefreshExpiry.value
+                                    .inWholeSeconds
+                                    .toInt(),
                             ),
                         )
                         return UserType.Admin(1)

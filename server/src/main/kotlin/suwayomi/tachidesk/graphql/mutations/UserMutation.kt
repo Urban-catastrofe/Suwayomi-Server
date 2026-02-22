@@ -39,7 +39,10 @@ class UserMutation {
             // Cookie Max-Age matches refresh token expiry to prevent browser from clearing it
             // JWT internal expiry is still short - server validates and auto-refreshes as needed
             val ctx = dataFetchingEnvironment.graphQlContext.get<Context>(Context::class)
-            val cookieMaxAge = serverConfig.jwtRefreshExpiry.value.inWholeSeconds.toInt()
+            val cookieMaxAge =
+                serverConfig.jwtRefreshExpiry.value
+                    .inWholeSeconds
+                    .toInt()
             ctx.cookie(createAuthCookie(ctx, "suwayomi-server-token", jwt.accessToken, cookieMaxAge))
             ctx.cookie(createAuthCookie(ctx, "suwayomi-server-refresh-token", jwt.refreshToken, cookieMaxAge))
 
@@ -99,7 +102,10 @@ class UserMutation {
 
         // Set the new access token as a persistent cookie with long Max-Age
         val ctx = dataFetchingEnvironment.graphQlContext.get<Context>(Context::class)
-        val cookieMaxAge = serverConfig.jwtRefreshExpiry.value.inWholeSeconds.toInt()
+        val cookieMaxAge =
+            serverConfig.jwtRefreshExpiry.value
+                .inWholeSeconds
+                .toInt()
         ctx.cookie(createAuthCookie(ctx, "suwayomi-server-token", accessToken, cookieMaxAge))
 
         return RefreshTokenPayload(
