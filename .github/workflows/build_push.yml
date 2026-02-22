@@ -24,12 +24,19 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          java-version: 21
+          java-version: 25
           distribution: 'zulu'
 
       - uses: gradle/actions/setup-gradle@v5
 
+      - name: Copy CI gradle.properties
+        run: |
+          mkdir -p ~/.gradle
+          cp .github/runner-files/ci-gradle.properties ~/.gradle/gradle.properties
+
       - name: Build Jar
+        env:
+          ProductBuildType: "Preview"
         run: ./gradlew :server:downloadWebUI :server:shadowJar --stacktrace
 
       - name: Upload Artifact
