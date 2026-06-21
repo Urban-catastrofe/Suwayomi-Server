@@ -85,6 +85,12 @@ object CategoryManga {
         }
     }
 
+    fun removeMangaFromAllCategories(mangaId: Int) {
+        transaction {
+            CategoryMangaTable.deleteWhere { CategoryMangaTable.manga eq mangaId }
+        }
+    }
+
     /**
      * list of mangas that belong to a category
      */
@@ -111,12 +117,14 @@ object CategoryManga {
 
         val transform: (ResultRow) -> MangaDataClass = {
             // Map the data from the result row to the MangaDataClass
-            val dataClass = MangaTable.toDataClass(it)
-            dataClass.lastReadAt = it[lastReadAt]
-            dataClass.unreadCount = it[unreadCount]
-            dataClass.downloadCount = it[downloadedCount]
-            dataClass.chapterCount = it[chapterCount]
-            dataClass
+            MangaTable
+                .toDataClass(it)
+                .copy(
+                    lastReadAt = it[lastReadAt],
+                    unreadCount = it[unreadCount],
+                    downloadCount = it[downloadedCount],
+                    chapterCount = it[chapterCount],
+                )
         }
 
         return transaction {

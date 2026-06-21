@@ -232,6 +232,7 @@ server.opdsShowOnlyUnreadChapters = false
 server.opdsShowOnlyDownloadedChapters = false
 server.opdsChapterSortOrder = "DESC"
 server.opdsCbzMimetype = "MODERN"
+server.opdsSkipChapterMetadataFeed = false
 ```
 - `server.opdsUseBinaryFileSizes = false` controls if Suwayomi should display file sizes in binary units (KiB, MiB, GiB) or decimal (KB, MB, GB) in OPDS listings.
 - `server.opdsItemsPerPage = 50` sets the number of items per page in OPDS listings. Range: 10 <= n <= 5000.
@@ -241,6 +242,7 @@ server.opdsCbzMimetype = "MODERN"
 - `server.opdsShowOnlyDownloadedChapters = false` controls if OPDS listings should only include downloaded chapters.
 - `server.opdsChapterSortOrder = "DESC"` sets the default chapter sort order in OPDS listings, either `"ASC"` or `"DESC"`
 - `server.opdsCbzMimetype = "MODERN"` controls which mimetype to use for CBZ downloads. This affects the offered link in OPDS, as well as the content type of the CBZ download. Allowed is MODERN (current IANA standard), LEGACY (deprecated mimetype for .cbz) and COMPATIBLE (deprecated mimetype for all comic archives). Use LEGACY or COMPATIBLE if older clients don't offer the chapter download (note that the chapter needs to first be downloaded in Suwayomi, before it is available in OPDS).
+- `server.opdsSkipChapterMetadataFeed = false` controls if the metadata feed should be skipped. When enabled, download and streaming links are provided directly in the chapter list. This improves compatibility with automated downloaders (like KOReader). KoSync strategies are applied, but `PROMPT` conflicts are ignored (treating local progress as priority).
 
 ### KOReader Sync
 ```
@@ -275,6 +277,28 @@ server.useHikariConnectionPool = true
 - `server.databaseUsername` the username with which to authenticate at the PostgreSQL instance.
 - `server.databasePassword` the username with which to authenticate at the PostgreSQL instance.
 - `server.useHikariConnectionPool` use Hikari Connection Pool to connect to the database.
+
+### SyncYomi
+```
+server.syncYomiEnabled = false
+server.syncYomiHost = ""
+server.syncYomiApiKey = ""
+server.syncDataManga = true
+server.syncDataChapters = true
+server.syncDataTracking = true
+server.syncDataHistory = true
+server.syncDataCategories = true
+server.syncInterval = "0s"
+```
+- `server.syncYomiEnabled` controls whether SyncYomi is enabled.
+- `server.syncYomiHost` base URL of the SyncYomi server instance. e.g. `http://localhost:8282`
+- `server.syncYomiApiKey` API key to authenticate with SyncYomi. You must use the same API key in both Suwayomi and SyncYomi.
+- `server.syncDataManga` enables syncing manga.
+- `server.syncDataChapters` enables syncing chapters.
+- `server.syncDataTracking` enables syncing tracking data.
+- `server.syncDataHistory` enables syncing reading history.
+- `server.syncDataCategories` enables syncing categories.
+- `server.syncInterval` interval between automatic sync operations. Use `0s` to disable.
 
 **Note:** The example [docker-compose.yml file](https://github.com/Suwayomi/Suwayomi-Server-docker/blob/main/docker-compose.yml) contains everything you need to get started with Suwayomi+PostgreSQL. Please be aware that PostgreSQL support is currently still in beta.
 

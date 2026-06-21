@@ -7,7 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased] (Preview)
 
 ### Added
-- .
+- (**Sync**) Added [SyncYomi](https://github.com/syncyomi/syncyomi) support
+- (**OPDS**) Add option to skip chapter metadata feed providing direct stream/download links
 
 ### Changed
 - (**Database/H2**) Use the latest H2 database engine
@@ -25,9 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - (**Extension**) Do not indicate an update is available when the extension is not installed
 - (**Chapter**) Fix losing chapter data on failed chapter list update
 - (**Chapter**) Fix database error when fetching chapter updates
-- (**Manga/API**) Fix "mangas" graphql query with active sorting and using a postgresql database (QUERY "mangas")
+- (**Manga/API**) Fix "mangas" graphql query with active sorting and using a PostgreSQL database (QUERY "mangas")
 - (**API**) Fix GraphQL `Filter` `notAll` and `notAny` being inversed
 - (**API**) Fix GraphQL `Filter` causing an UnsupportedOperationException when passing an empty list as a `Any` filter value
+- (**Build**) Fix CURL failing silently in builds
+- (**Backup/Database**) Fix backup creation slowdown when mapping chapters
 
 ## [v2.2.2100] + [WebUI: v20260508.01] - 2026-05-08
 

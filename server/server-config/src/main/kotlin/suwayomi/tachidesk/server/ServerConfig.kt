@@ -15,15 +15,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import org.jetbrains.exposed.v1.core.SortOrder
 import suwayomi.tachidesk.graphql.types.AuthMode
@@ -72,6 +70,21 @@ const val SERVER_CONFIG_MODULE_NAME = "server"
 val serverConfig: ServerConfig by lazy { GlobalConfigManager.module() }
 
 private val application: Application by injectLazy()
+
+@OptIn(ExperimentalCoroutinesApi::class)
+fun <T> subscribeTo(
+    flow: Flow<T>,
+    ignoreInitialValue: Boolean = true,
+    onChange: suspend (value: T) -> Unit,
+) {
+    val actualFlow =
+        if (ignoreInitialValue) {
+            flow.drop(1)
+        } else {
+            flow
+        }
+    actualFlow.distinctUntilChanged().conflate().onEach { onChange(it) }.launchIn(mutableConfigValueScope)
+}
 
 // Settings are ordered by "protoNumber".
 class ServerConfig(
@@ -1022,7 +1035,77 @@ class ServerConfig(
         description = "Enable the WebView via CEF (Chromium)"
     )
 
+    val syncYomiEnabled: MutableStateFlow<Boolean> by BooleanSetting(
+        protoNumber = 87,
+        defaultValue = false,
+        group = SettingGroup.SYNCYOMI,
+        privacySafe = true
+    )
 
+    val syncYomiHost: MutableStateFlow<String> by StringSetting(
+        protoNumber = 88,
+        defaultValue = "",
+        group = SettingGroup.SYNCYOMI,
+        privacySafe = true,
+    )
+
+    val syncYomiApiKey: MutableStateFlow<String> by StringSetting(
+        protoNumber = 89,
+        defaultValue = "",
+        group = SettingGroup.SYNCYOMI,
+        privacySafe = false,
+    )
+
+    val syncDataManga: MutableStateFlow<Boolean> by BooleanSetting(
+        protoNumber = 90,
+        defaultValue = true,
+        group = SettingGroup.SYNCYOMI,
+        privacySafe = true,
+    )
+
+    val syncDataChapters: MutableStateFlow<Boolean> by BooleanSetting(
+        protoNumber = 91,
+        defaultValue = true,
+        group = SettingGroup.SYNCYOMI,
+        privacySafe = true,
+    )
+
+    val syncDataTracking: MutableStateFlow<Boolean> by BooleanSetting(
+        protoNumber = 92,
+        defaultValue = true,
+        group = SettingGroup.SYNCYOMI,
+        privacySafe = true,
+    )
+
+    val syncDataHistory: MutableStateFlow<Boolean> by BooleanSetting(
+        protoNumber = 93,
+        defaultValue = true,
+        group = SettingGroup.SYNCYOMI,
+        privacySafe = true,
+    )
+
+    val syncDataCategories: MutableStateFlow<Boolean> by BooleanSetting(
+        protoNumber = 94,
+        defaultValue = true,
+        group = SettingGroup.SYNCYOMI,
+        privacySafe = true,
+    )
+
+    val syncInterval: MutableStateFlow<Duration> by DurationSetting(
+        protoNumber = 95,
+        defaultValue = 0.seconds,
+        group = SettingGroup.SYNCYOMI,
+        privacySafe = true,
+    )
+
+    val opdsSkipChapterMetadataFeed: MutableStateFlow<Boolean> by BooleanSetting(
+        protoNumber = 96,
+        group = SettingGroup.OPDS,
+        privacySafe = true,
+        defaultValue = false,
+        description = "Skips the metadata feed and provides download/stream links directly in the chapter list. Improves compatibility with KOReader auto-downloader. KoSync strategies are applied, but PROMPT conflicts are ignored (treating local progress as priority)."
+
+    )
 
     /** ****************************************************************** **/
     /**                                                                    **/
@@ -1067,18 +1150,7 @@ class ServerConfig(
         flow: Flow<T>,
         onChange: suspend (value: T) -> Unit,
         ignoreInitialValue: Boolean = true,
-    ) {
-        val actualFlow =
-            if (ignoreInitialValue) {
-                flow.drop(1)
-            } else {
-                flow
-            }
-
-        val sharedFlow = MutableSharedFlow<T>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-        actualFlow.distinctUntilChanged().mapLatest { sharedFlow.emit(it) }.launchIn(mutableConfigValueScope)
-        sharedFlow.onEach { onChange(it) }.launchIn(mutableConfigValueScope)
-    }
+    ) = subscribeTo(flow, ignoreInitialValue, onChange)
 
     fun <T> subscribeTo(
         flow: Flow<T>,
