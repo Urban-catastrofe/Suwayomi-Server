@@ -7,8 +7,71 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased] (Preview)
 
 ### Added
+- (**Downloads**) Try to preserve downloaded files during a chapter list update for chapters with title and/or scanlator change
+- (**Logs**) Add IP location logging
+
+### Changed
+- (**SystemTray**) Disable DorkBox update requests
+- (**GraphQL**) Updated GraphiQL GraphQL Playground
+- (**Downloader**) Skip LocalSource downloading
+
+### Fixed
+- (**Tracker**) Fix Shikimori
+- (**Extension**) Fix losing installed extension in case the update fails
+- (**Source/API**) Fix graphql browse mutation (`fetchSourceManga`) with filters including nested group changes
+- (**HTML**) Fix HTML being sent with gibberish when using non-latin characters
+- (**OPDS**) Fix OPDS search charset
+
+## [v2.3.2243] - 2026-07-13
+
+### Added
+- (**Extension**) Add ability to install jar versions of extensions
+
+### Fixed
+- (**Extension**) Fix missing memo field in getPageList
+
+## [v2.3.2238] - 2026-07-05
+
+### Changed
+- (**Extension**) Support fully qualified extension class names
+- (**Manga/API**) Return partial responses for Manga And Chapters query
+
+### Fixed
+- (**Database/H2**) Use temporary file for H2 migration tools download
+
+## [v2.3.2232] - 2026-07-03
+
+### Fixed
+- (**Extension**) Update APK url on installed Extensions
+
+## [v2.3.2230] - 2026-07-01
+
+### Fixed
+- (**Extension/API**) Fix GQL handling of extensions without an extension store
+- (**Build/Bundler**) Fix build continuing if errors happen
+- (**Build/Bundler**) Remove jogamp from build script
+- (**Build/Bundler**) Fix chmod attempts on Windows Java
+
+## [v2.3.2223] + [WebUI: v20260509.01] - 2026-06-30
+
+### Major Changes
+
+#### Added [SyncYomi](https://github.com/syncyomi/syncyomi) support
+This allows you to sync your server manga with other Mihon-based forks! As long as the fork supports SyncYomi it can be sync with!
+
+#### Support Extension API v1.6
+This update allows Suwayomi to load and use v1.6 extensions, it is a minor improvement over the existing 1.4 extension API that cleans up much of what we had! It is the basis of future extension APIs that will allow for further development.
+
+This also allows us to move to Mihon's Extension Store system and replace our Extension Repo system. Old Extension Repos are still compatible and will be automatically migrated if they move to the Extension Store system.
+
+> [!WARNING]
+> Please back up your Extension Repos, because of the new Extension Stores system you may lose them in the update process and may need to re-add them.
+
+### Added
 - (**Sync**) Added [SyncYomi](https://github.com/syncyomi/syncyomi) support
 - (**OPDS**) Add option to skip chapter metadata feed providing direct stream/download links
+- (**Extension/API**) Support Extensions API v1.6
+- (**Tracker/API**) Add mutation to bind existing track record
 
 ### Changed
 - (**Database/H2**) Use the latest H2 database engine
@@ -425,6 +488,7 @@ Huge thanks to @martinek who pulled the most of the weight this release!
 
 <!-- WEBUI LINKS -->
 
+[WebUI: v20260509.01]: https://github.com/Suwayomi/Suwayomi-WebUI/blob/master/CHANGELOG.md#2026050901-r3147---2026-05-09
 [WebUI: v20260508.01]: https://github.com/Suwayomi/Suwayomi-WebUI/blob/master/CHANGELOG.md#2026050801-r3136---2026-05-08
 [WebUI: v20251230.01]: https://github.com/Suwayomi/Suwayomi-WebUI/blob/master/CHANGELOG.md#2025123001-r2937---2025-12-30
 [WebUI: v20250801.01]: https://github.com/Suwayomi/Suwayomi-WebUI/blob/master/CHANGELOG.md#2025080101-r2717---2025-08-01
@@ -451,7 +515,12 @@ Huge thanks to @martinek who pulled the most of the weight this release!
 
 <!-- SERVER LINKS -->
 
-[unreleased]: https://github.com/suwayomi/suwayomi-server/compare/v2.2.2100...HEAD
+[unreleased]: https://github.com/suwayomi/suwayomi-server/compare/v2.3.2243...HEAD
+[v2.3.2243]: https://github.com/suwayomi/suwayomi-server/compare/v2.3.2238...v2.3.2243
+[v2.3.2238]: https://github.com/suwayomi/suwayomi-server/compare/v2.3.2232...v2.3.2238
+[v2.3.2232]: https://github.com/suwayomi/suwayomi-server/compare/v2.3.2230...v2.3.2232
+[v2.3.2230]: https://github.com/suwayomi/suwayomi-server/compare/v2.3.2223...v2.3.2230
+[v2.3.2223]: https://github.com/suwayomi/suwayomi-server/compare/v2.2.2100...v2.3.2223
 [v2.2.2100]: https://github.com/suwayomi/suwayomi-server/compare/v2.1.1867...v2.2.2100
 [v2.1.1867]: https://github.com/suwayomi/suwayomi-server/compare/v2.0.1727...v2.1.1867
 [v2.0.1727]: https://github.com/suwayomi/suwayomi-server/compare/v1.1.1...v2.0.1727

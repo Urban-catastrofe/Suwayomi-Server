@@ -28,6 +28,7 @@ import org.jetbrains.exposed.v1.core.upperCase
 import org.jetbrains.exposed.v1.core.wrap
 import org.jetbrains.exposed.v1.jdbc.Query
 import org.jetbrains.exposed.v1.jdbc.andWhere
+import suwayomi.tachidesk.manga.model.dataclass.ContentWarning
 
 class ILikeEscapeOp(
     expr1: Expression<*>,
@@ -140,10 +141,12 @@ interface HasGetOp {
     fun getOp(): Op<Boolean>?
 }
 
-fun Query.applyOps(vararg ops: HasGetOp?) {
+fun Query.applyOps(vararg ops: HasGetOp?): Query {
     ops.mapNotNull { it?.getOp() }.forEach {
         andWhere { it }
     }
+
+    return this
 }
 
 interface Filter<T : Filter<T>> : HasGetOp {
@@ -328,6 +331,24 @@ data class DoubleFilter(
             greaterThanOrEqualTo = greaterThanOrEqualTo?.toFloat(),
         )
 }
+
+data class ContentWarningFilter(
+    override val isNull: Boolean? = null,
+    override val equalTo: ContentWarning? = null,
+    override val notEqualTo: ContentWarning? = null,
+    override val notEqualToAll: List<ContentWarning>? = null,
+    override val notEqualToAny: List<ContentWarning>? = null,
+    override val distinctFrom: ContentWarning? = null,
+    override val distinctFromAll: List<ContentWarning>? = null,
+    override val distinctFromAny: List<ContentWarning>? = null,
+    override val notDistinctFrom: ContentWarning? = null,
+    override val `in`: List<ContentWarning>? = null,
+    override val notIn: List<ContentWarning>? = null,
+    override val lessThan: ContentWarning? = null,
+    override val lessThanOrEqualTo: ContentWarning? = null,
+    override val greaterThan: ContentWarning? = null,
+    override val greaterThanOrEqualTo: ContentWarning? = null,
+) : ComparableScalarFilter<ContentWarning>
 
 data class StringFilter(
     override val isNull: Boolean? = null,
@@ -613,6 +634,35 @@ fun <T : Comparable<T>, S : T?> andFilterWithCompare(
     }
     if (!filter.notIn.isNullOrEmpty()) {
         opAnd.andWhere(filter.notIn) { column notInList it as List<S> }
+    }
+
+    return opAnd.op
+}
+
+@Suppress("UNCHECKED_CAST")
+fun <T : Enum<T>> andFilterWithCompareEnum(
+    column: Column<Int>,
+    filter: ComparableScalarFilter<T>?,
+): Op<Boolean>? {
+    filter ?: return null
+    val opAnd = OpAnd()
+
+    opAnd.andWhere(filter.lessThan) { column less it.ordinal }
+    opAnd.andWhere(filter.lessThanOrEqualTo) { column lessEq it.ordinal }
+    opAnd.andWhere(filter.greaterThan) { column greater it.ordinal }
+    opAnd.andWhere(filter.greaterThanOrEqualTo) { column greaterEq it.ordinal }
+
+    opAnd.andWhere(filter.isNull) { if (it) column.isNull() else column.isNotNull() }
+
+    opAnd.andWhere(filter.equalTo) { column eq it.ordinal }
+    opAnd.andNotWhere(filter.notEqualTo, filter.notEqualToAll, filter.notEqualToAny) { column neq it.ordinal }
+    opAnd.andWhere(filter.distinctFrom, filter.distinctFromAll, filter.distinctFromAny) { DistinctFromOp.distinctFrom(column, it.ordinal) }
+    opAnd.andWhere(filter.notDistinctFrom) { DistinctFromOp.notDistinctFrom(column, it.ordinal) }
+    if (!filter.`in`.isNullOrEmpty()) {
+        opAnd.andWhere(filter.`in`) { column inList it.map { it.ordinal } }
+    }
+    if (!filter.notIn.isNullOrEmpty()) {
+        opAnd.andWhere(filter.notIn) { column notInList it.map { it.ordinal } }
     }
 
     return opAnd.op

@@ -67,7 +67,7 @@ class TrackMutation {
                 "Could not find tracker"
             }
         return future {
-            tracker.login(input.username, input.password)
+            tracker.loginImpl(input.username, input.password)
             val trackerType = TrackerType(tracker)
             LoginTrackerCredentialsPayload(
                 input.clientMutationId,
@@ -142,6 +142,36 @@ class TrackMutation {
                         }.first()
                 }
             BindTrackPayload(
+                clientMutationId,
+                TrackRecordType(trackRecord),
+            )
+        }
+    }
+
+    data class BindTrackRecordInput(
+        val clientMutationId: String? = null,
+        val mangaId: Int,
+        val trackRecordId: Int,
+    )
+
+    data class BindTrackRecordPayload(
+        val clientMutationId: String?,
+        val trackRecord: TrackRecordType,
+    )
+
+    @RequireAuth
+    fun bindTrackRecord(input: BindTrackRecordInput): CompletableFuture<BindTrackRecordPayload?> {
+        val (clientMutationId, mangaId, trackRecordId) = input
+
+        return future {
+            val boundTrackRecordId = Track.bindTrackRecord(mangaId, trackRecordId)
+
+            val trackRecord =
+                transaction {
+                    TrackRecordTable.selectAll().where { TrackRecordTable.id eq boundTrackRecordId }.first()
+                }
+
+            BindTrackRecordPayload(
                 clientMutationId,
                 TrackRecordType(trackRecord),
             )

@@ -14,6 +14,7 @@ import org.jetbrains.exposed.v1.core.dao.id.IntIdTable
 import suwayomi.tachidesk.manga.impl.MangaList.proxyThumbnailUrl
 import suwayomi.tachidesk.manga.model.dataclass.MangaDataClass
 import suwayomi.tachidesk.manga.model.dataclass.toGenreList
+import suwayomi.tachidesk.manga.model.table.columns.jsonObject
 import suwayomi.tachidesk.manga.model.table.columns.truncatingVarchar
 import suwayomi.tachidesk.manga.model.table.columns.unlimitedVarchar
 
@@ -48,6 +49,7 @@ object MangaTable : IntIdTable() {
     val lastModifiedAt = long("last_modified_at").default(0)
     val version = long("version").default(0)
     val isSyncing = bool("is_syncing").default(false)
+    val memo = jsonObject("memo")
 }
 
 fun MangaTable.toDataClass(mangaEntry: ResultRow) =
@@ -72,6 +74,7 @@ fun MangaTable.toDataClass(mangaEntry: ResultRow) =
         updateStrategy = UpdateStrategy.valueOf(mangaEntry[updateStrategy]),
         lastModifiedAt = mangaEntry[lastModifiedAt],
         version = mangaEntry[version],
+        memo = mangaEntry[memo],
     )
 
 enum class MangaStatus(

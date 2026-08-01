@@ -11,6 +11,7 @@ import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.dao.id.IntIdTable
 import suwayomi.tachidesk.manga.model.dataclass.ChapterDataClass
+import suwayomi.tachidesk.manga.model.table.columns.jsonObject
 import suwayomi.tachidesk.manga.model.table.columns.truncatingVarchar
 
 object ChapterTable : IntIdTable() {
@@ -42,6 +43,8 @@ object ChapterTable : IntIdTable() {
     val lastModifiedAt = long("last_modified_at").default(0)
     val version = long("version").default(0)
     val isSyncing = bool("is_syncing").default(false)
+
+    val memo = jsonObject("memo")
 }
 
 fun ChapterTable.toDataClass(chapterEntry: ResultRow) =
@@ -64,4 +67,5 @@ fun ChapterTable.toDataClass(chapterEntry: ResultRow) =
         pageCount = chapterEntry[pageCount],
         lastModifiedAt = chapterEntry[lastModifiedAt],
         version = chapterEntry[version],
+        memo = chapterEntry[memo],
     )
