@@ -54,6 +54,7 @@ import suwayomi.tachidesk.server.settings.PathSetting
 import suwayomi.tachidesk.server.settings.SettingGroup
 import suwayomi.tachidesk.server.settings.SettingsRegistry
 import suwayomi.tachidesk.server.settings.StringSetting
+import suwayomi.tachidesk.server.util.Platform
 import uy.kohesive.injekt.injectLazy
 import xyz.nulldev.ts.config.GlobalConfigManager
 import xyz.nulldev.ts.config.SystemPropertyOverridableConfigModule
@@ -131,14 +132,14 @@ class ServerConfig(
     val socksProxyHost: MutableStateFlow<String> by StringSetting(
         protoNumber = 5,
         group = SettingGroup.PROXY,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "",
     )
 
     val socksProxyPort: MutableStateFlow<String> by StringSetting(
         protoNumber = 6,
         group = SettingGroup.PROXY,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "",
     )
 
@@ -187,7 +188,7 @@ class ServerConfig(
     val electronPath: MutableStateFlow<String> by PathSetting(
         protoNumber = 12,
         group = SettingGroup.WEB_UI,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "",
         mustExist = true,
         excludeFromBackup = true,
@@ -222,7 +223,7 @@ class ServerConfig(
     val downloadsPath: MutableStateFlow<String> by PathSetting(
         protoNumber = 16,
         group = SettingGroup.DOWNLOADER,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "",
         mustExist = true,
         excludeFromBackup = true,
@@ -250,7 +251,7 @@ class ServerConfig(
         privacySafe = true,
         defaultValue = 0,
         deprecated =
-            SettingsRegistry.SettingDeprecated(
+            SettingsRegistry.SettingDeprecated.Migrate.ConfigValue(
                 replaceWith = "autoDownloadNewChaptersLimit",
                 message = "Replaced with autoDownloadNewChaptersLimit",
                 migrateConfigValue = { it.unwrapped() as? Int }
@@ -283,7 +284,8 @@ class ServerConfig(
         privacySafe = false,
         defaultValue = emptyList(),
         deprecated =
-            SettingsRegistry.SettingDeprecated(
+            SettingsRegistry.SettingDeprecated.Migrate.ConfigValue(
+                replaceWith = "extensionStores",
                 message = "Replaced with addExtensionStore and removeExtensionStore mutations",
                 migrateConfigValue = {
                     @Suppress("UNCHECKED_CAST")
@@ -367,7 +369,7 @@ class ServerConfig(
         privacySafe = true,
         defaultValue = false,
         deprecated =
-            SettingsRegistry.SettingDeprecated(
+            SettingsRegistry.SettingDeprecated.Migrate.ConfigValue(
                 replaceWith = "authMode",
                 message = "Removed - prefer authMode",
                 migrateConfigValue = {
@@ -418,7 +420,7 @@ class ServerConfig(
         privacySafe = true,
         defaultValue = false,
         deprecated =
-            SettingsRegistry.SettingDeprecated(
+            SettingsRegistry.SettingDeprecated.Remove(
                 message = "Removed - does not do anything",
             ),
     )
@@ -461,7 +463,7 @@ class ServerConfig(
     val backupPath: MutableStateFlow<String> by PathSetting(
         protoNumber = 38,
         group = SettingGroup.BACKUP,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "",
         mustExist = true,
         excludeFromBackup = true,
@@ -497,7 +499,7 @@ class ServerConfig(
     val localSourcePath: MutableStateFlow<String> by PathSetting(
         protoNumber = 42,
         group = SettingGroup.LOCAL_SOURCE,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "",
         mustExist = true,
         excludeFromBackup = true,
@@ -514,7 +516,7 @@ class ServerConfig(
     val flareSolverrUrl: MutableStateFlow<String> by StringSetting(
         protoNumber = 44,
         group = SettingGroup.CLOUDFLARE,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "http://localhost:8191",
     )
 
@@ -530,7 +532,7 @@ class ServerConfig(
     val flareSolverrSessionName: MutableStateFlow<String> by StringSetting(
         protoNumber = 46,
         group = SettingGroup.CLOUDFLARE,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "suwayomi",
     )
 
@@ -711,9 +713,9 @@ class ServerConfig(
     val koreaderSyncServerUrl: MutableStateFlow<String> by MigratedConfigValue(
         protoNumber = 59,
         group = SettingGroup.KOREADER_SYNC,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "https://sync.koreader.rocks/",
-        deprecated = SettingsRegistry.SettingDeprecated(
+        deprecated = SettingsRegistry.SettingDeprecated.Migrate.Config(
             replaceWith = "MOVE TO PREFERENCES",
             message = "Moved to preference store. User is supposed to use a login/logout mutation",
             migrateConfig = { value, config ->
@@ -731,7 +733,7 @@ class ServerConfig(
         group = SettingGroup.KOREADER_SYNC,
         privacySafe = false,
         defaultValue = "",
-        deprecated = SettingsRegistry.SettingDeprecated(
+        deprecated = SettingsRegistry.SettingDeprecated.Migrate.Config(
             replaceWith = "MOVE TO PREFERENCES",
             message = "Moved to preference store. User is supposed to use a login/logout mutation",
             migrateConfig = { value, config ->
@@ -749,7 +751,7 @@ class ServerConfig(
         group = SettingGroup.KOREADER_SYNC,
         privacySafe = false,
         defaultValue = "",
-        deprecated = SettingsRegistry.SettingDeprecated(
+        deprecated = SettingsRegistry.SettingDeprecated.Migrate.Config(
             replaceWith = "MOVE TO PREFERENCES",
             message = "Moved to preference store. User is supposed to use a login/logout mutation",
             migrateConfig = { value, config ->
@@ -765,9 +767,9 @@ class ServerConfig(
     val koreaderSyncDeviceId: MutableStateFlow<String> by MigratedConfigValue(
         protoNumber = 62,
         group = SettingGroup.KOREADER_SYNC,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "",
-        deprecated = SettingsRegistry.SettingDeprecated(
+        deprecated = SettingsRegistry.SettingDeprecated.Migrate.Config(
             replaceWith = "MOVE TO PREFERENCES",
             message = "Moved to preference store. Is supposed to be random and gets auto generated",
             migrateConfig = { value, config ->
@@ -800,7 +802,7 @@ class ServerConfig(
                 imports = listOf("suwayomi.tachidesk.graphql.types.KoreaderSyncLegacyStrategy"),
             ),
         deprecated =
-        SettingsRegistry.SettingDeprecated(
+        SettingsRegistry.SettingDeprecated.Migrate.Config(
             replaceWith = "koreaderSyncStrategyForward, koreaderSyncStrategyBackward",
             message = "Replaced with koreaderSyncStrategyForward and koreaderSyncStrategyBackward",
             migrateConfig = { value, config ->
@@ -909,7 +911,7 @@ class ServerConfig(
     val databaseUrl: MutableStateFlow<String> by StringSetting(
         protoNumber = 70,
         group = SettingGroup.DATABASE,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = "postgresql://localhost:5432/suwayomi",
         excludeFromBackup = true,
     )
@@ -1039,8 +1041,16 @@ class ServerConfig(
         protoNumber = 86,
         group = SettingGroup.WEB_VIEW,
         privacySafe = true,
-        defaultValue = true,
-        description = "Enable the WebView via CEF (Chromium)"
+        defaultValue = !Platform.current.os.isMacOS,
+        validator = {
+            if (Platform.current.os.isMacOS) {
+                return@BooleanSetting "KCEF is not supported on MacOS"
+            }
+
+            return@BooleanSetting null
+        },
+        toValidValue = { !Platform.current.os.isMacOS && it },
+        description = "Enable the WebView via CEF (Chromium) - Not supported on MacOS",
     )
 
     val syncYomiEnabled: MutableStateFlow<Boolean> by BooleanSetting(
@@ -1054,7 +1064,7 @@ class ServerConfig(
         protoNumber = 88,
         defaultValue = "",
         group = SettingGroup.SYNCYOMI,
-        privacySafe = true,
+        privacySafe = false,
     )
 
     val syncYomiApiKey: MutableStateFlow<String> by StringSetting(
@@ -1117,7 +1127,7 @@ class ServerConfig(
     val extensionStores: MutableStateFlow<List<String>> by ListSetting<String>(
         protoNumber = 97,
         group = SettingGroup.EXTENSION,
-        privacySafe = true,
+        privacySafe = false,
         defaultValue = emptyList(),
         requiresRestart = true,
         itemValidator = { url ->
@@ -1150,7 +1160,7 @@ class ServerConfig(
         privacySafe = false,
         defaultValue = "",
         deprecated =
-            SettingsRegistry.SettingDeprecated(
+            SettingsRegistry.SettingDeprecated.Migrate.ConfigValue(
                 replaceWith = "authUsername",
                 message = "Removed - prefer authUsername",
                 migrateConfigValue = { it.unwrapped() as? String },
@@ -1166,7 +1176,7 @@ class ServerConfig(
         privacySafe = false,
         defaultValue = "",
         deprecated =
-            SettingsRegistry.SettingDeprecated(
+            SettingsRegistry.SettingDeprecated.Migrate.ConfigValue(
                 replaceWith = "authPassword",
                 message = "Removed - prefer authPassword",
                 migrateConfigValue = { it.unwrapped() as? String },
