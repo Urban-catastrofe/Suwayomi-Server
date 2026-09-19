@@ -2,11 +2,11 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
+# zstd-kmp ships glibc-linked JNI binaries; gcompat provides Alpine's loader shim.
+RUN apk add --no-cache gcompat && mkdir -p /data
+
 # Copy the built jar
 COPY server/build/*.jar /app/suwayomi-server.jar
-
-# Create data directory
-RUN mkdir -p /data
 
 ENV JAVA_OPTS=""
 
