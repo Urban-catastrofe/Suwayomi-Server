@@ -249,7 +249,7 @@ object ProtoBackupImport : ProtoBackupBase() {
             }
         }
 
-        logger.info {
+        val restoreSummary =
             """
             Restore Errors:
             ${errors.joinToString("\n") { "${it.first} - ${it.second}" }}
@@ -261,9 +261,14 @@ object ProtoBackupImport : ProtoBackupBase() {
             - Missing Trackers:
                 ${validationResult.missingTrackers.joinToString("\n                    ")}
             """.trimIndent()
-        }
 
-        updateRestoreState(id, BackupRestoreState.Success)
+        if (errors.isEmpty()) {
+            logger.info { restoreSummary }
+            updateRestoreState(id, BackupRestoreState.Success)
+        } else {
+            logger.error { restoreSummary }
+            updateRestoreState(id, BackupRestoreState.Failure)
+        }
 
         return validationResult
     }
