@@ -2,7 +2,7 @@ package eu.kanade.tachiyomi.network.interceptor
 
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.POST
-import eu.kanade.tachiyomi.network.awaitSuccess
+import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.network.parseAs
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.GlobalScope
@@ -307,6 +307,12 @@ object CFClearance {
         val version: String,
     )
 
+    @Serializable
+    data class FlareSolverError(
+        val status: String? = null,
+        val message: String? = null,
+    )
+
     suspend fun resolveWithFlareSolver(
         originalRequest: Request,
         onlyCookies: Boolean,
@@ -314,43 +320,58 @@ object CFClearance {
         val timeout = serverConfig.flareSolverrTimeout.value.seconds
         return with(json) {
             mutex.withLock {
-                client.value
-                    .newCall(
-                        POST(
-                            url = serverConfig.flareSolverrUrl.value.removeSuffix("/") + "/v1",
-                            body =
-                                Json
-                                    .encodeToString(
-                                        FlareSolverRequest(
-                                            "request.${originalRequest.method.lowercase()}",
-                                            originalRequest.url.toString(),
-                                            session = serverConfig.flareSolverrSessionName.value,
-                                            sessionTtlMinutes = serverConfig.flareSolverrSessionTtl.value,
-                                            cookies =
-                                                network.cookieStore
-                                                    .get(originalRequest.url)
-                                                    .filter { it.name !in CloudflareInterceptor.COOKIE_NAMES }
-                                                    .map { cookie ->
-                                                        FlareSolverCookie(cookie.name, cookie.value)
+                val response =
+                    client.value
+                        .newCall(
+                            POST(
+                                url = serverConfig.flareSolverrUrl.value.removeSuffix("/") + "/v1",
+                                body =
+                                    Json
+                                        .encodeToString(
+                                            FlareSolverRequest(
+                                                "request.${originalRequest.method.lowercase()}",
+                                                originalRequest.url.toString(),
+                                                session = serverConfig.flareSolverrSessionName.value,
+                                                sessionTtlMinutes = serverConfig.flareSolverrSessionTtl.value,
+                                                cookies =
+                                                    network.cookieStore
+                                                        .get(originalRequest.url)
+                                                        .filter { it.name !in CloudflareInterceptor.COOKIE_NAMES }
+                                                        .map { cookie ->
+                                                            FlareSolverCookie(cookie.name, cookie.value)
+                                                        },
+                                                returnOnlyCookies = onlyCookies,
+                                                maxTimeout = timeout.inWholeMilliseconds.toInt(),
+                                                postData =
+                                                    if (originalRequest.method == "POST") {
+                                                        originalRequest.body
+                                                            ?.let { body ->
+                                                                Buffer()
+                                                                    .also { body.writeTo(it) }
+                                                                    .readUtf8()
+                                                            }.orEmpty()
+                                                    } else {
+                                                        null
                                                     },
-                                            returnOnlyCookies = onlyCookies,
-                                            maxTimeout = timeout.inWholeMilliseconds.toInt(),
-                                            postData =
-                                                if (originalRequest.method == "POST") {
-                                                    originalRequest.body
-                                                        ?.let { body ->
-                                                            Buffer()
-                                                                .also { body.writeTo(it) }
-                                                                .readUtf8()
-                                                        }.orEmpty()
-                                                } else {
-                                                    null
-                                                },
-                                        ),
-                                    ).toRequestBody(jsonMediaType),
-                        ),
-                    ).awaitSuccess()
-                    .parseAs<FlareSolverResponse>()
+                                            ),
+                                        ).toRequestBody(jsonMediaType),
+                            ),
+                        ).await()
+
+                if (!response.isSuccessful) {
+                    val errorBody = response.body.string()
+                    val flareSolverrMessage =
+                        runCatching { json.decodeFromString(FlareSolverError.serializer(), errorBody).message }
+                            .getOrNull()
+                            ?.takeIf { it.isNotBlank() }
+                    val error =
+                        "FlareSolverr request for '${originalRequest.url}' failed with HTTP ${response.code}: " +
+                            (flareSolverrMessage ?: errorBody)
+                    logger.error { error }
+                    throw IOException(error)
+                }
+
+                response.parseAs<FlareSolverResponse>()
             }
         }
     }
