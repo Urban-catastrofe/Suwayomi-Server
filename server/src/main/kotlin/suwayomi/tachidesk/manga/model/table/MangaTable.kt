@@ -29,7 +29,7 @@ object MangaTable : IntIdTable() {
     val genre = unlimitedVarchar("genre").nullable()
 
     val status = integer("status").default(SManga.UNKNOWN)
-    val thumbnail_url = varchar("thumbnail_url", 2048).nullable()
+    val thumbnail_url = truncatingVarchar("thumbnail_url", 2048).nullable()
     val thumbnailUrlLastFetched = long("thumbnail_url_last_fetched").default(0)
 
     val inLibrary = bool("in_library").default(false)
