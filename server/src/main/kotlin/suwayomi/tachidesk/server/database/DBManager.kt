@@ -49,8 +49,9 @@ object DBManager {
                         username = serverConfig.databaseUsername.value
                         password = serverConfig.databasePassword.value
                         // PostgreSQL specific optimizations
-                        addDataSourceProperty("cachePrepStmts", "true")
-                        addDataSourceProperty("useServerPrepStmts", "true")
+                        addDataSourceProperty("preparedStatementCacheQueries", "256")
+                        addDataSourceProperty("preparedStatementCacheSizeMiB", "5")
+                        addDataSourceProperty("reWriteBatchedInserts", "true")
                     }
 
                     DatabaseType.H2 -> {

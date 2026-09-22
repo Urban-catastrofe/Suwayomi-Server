@@ -68,6 +68,7 @@ import xyz.nulldev.ts.config.updateFileAppender
 import java.io.File
 import java.net.Authenticator
 import java.net.PasswordAuthentication
+import java.net.URI
 import java.security.Security
 import java.util.Locale
 
@@ -114,6 +115,8 @@ data class ProxySettings(
     val proxyPort: String,
     val proxyUsername: String,
     val proxyPassword: String,
+    val databaseUrl: String,
+    val flareSolverrUrl: String,
 )
 
 data class DatabaseSettings(
@@ -140,6 +143,34 @@ fun setupLogLevelUpdating(
         },
         ignoreInitialValue = false,
     )
+}
+
+/**
+ * Hosts which must never be routed through the SOCKS proxy.
+ *
+ * The proxy is applied JVM wide (`socksProxyHost`), which also affects the database connection and
+ * the FlareSolverr requests. Without this list, the database pool runs dry after the first
+ * connection recycling (~15 min) because the JDBC connection gets routed through the proxy.
+ */
+private fun socksNonProxyHosts(
+    configuredHosts: String?,
+    databaseUrl: String,
+    flareSolverrUrl: String,
+): String {
+    val hosts = configuredHosts?.split('|')?.filterTo(mutableListOf()) { it.isNotBlank() } ?: mutableListOf()
+    hosts += listOf("localhost", "127.*", "[::1]")
+
+    runCatching { URI(databaseUrl).host }
+        .getOrNull()
+        ?.takeIf { it.isNotBlank() }
+        ?.let(hosts::add)
+
+    runCatching { URI(flareSolverrUrl).host }
+        .getOrNull()
+        ?.takeIf { it.isNotBlank() }
+        ?.let(hosts::add)
+
+    return hosts.distinct().joinToString("|")
 }
 
 fun serverModule(applicationDirs: ApplicationDirs): Module =
@@ -342,6 +373,7 @@ fun applicationSetup() {
         shutdownApp(ExitCode.LocalSourceSetupFailure)
     }
 
+    val configuredSocksNonProxyHosts = System.getProperty("socksNonProxyHosts")
     serverConfig.subscribeTo(
         combine<Any, DatabaseSettings>(
             serverConfig.databaseType,
@@ -361,6 +393,12 @@ fun applicationSetup() {
         { (databaseType, databaseUrl, _databaseUsername, _databasePassword, hikariCp) ->
             logger.info {
                 "Database changed - type=$databaseType url=$databaseUrl, username=[REDACTED], password=[REDACTED], hikaricp=$hikariCp"
+            }
+            if (serverConfig.socksProxyEnabled.value) {
+                System.setProperty(
+                    "socksNonProxyHosts",
+                    socksNonProxyHosts(configuredSocksNonProxyHosts, databaseUrl, serverConfig.flareSolverrUrl.value),
+                )
             }
             databaseUp()
 
@@ -400,6 +438,8 @@ fun applicationSetup() {
             serverConfig.socksProxyPort,
             serverConfig.socksProxyUsername,
             serverConfig.socksProxyPassword,
+            serverConfig.databaseUrl,
+            serverConfig.flareSolverrUrl,
         ) { vargs ->
             ProxySettings(
                 vargs[0] as Boolean,
@@ -408,9 +448,11 @@ fun applicationSetup() {
                 vargs[3] as String,
                 vargs[4] as String,
                 vargs[5] as String,
+                vargs[6] as String,
+                vargs[7] as String,
             )
         }.distinctUntilChanged(),
-        { (proxyEnabled, proxyVersion, proxyHost, proxyPort, proxyUsername, proxyPassword) ->
+        { (proxyEnabled, proxyVersion, proxyHost, proxyPort, proxyUsername, proxyPassword, databaseUrl, flareSolverrUrl) ->
             logger.info {
                 "Socks Proxy changed - enabled=$proxyEnabled address=$proxyHost:$proxyPort , username=[REDACTED], password=[REDACTED]"
             }
@@ -418,6 +460,10 @@ fun applicationSetup() {
                 System.setProperty("socksProxyHost", proxyHost)
                 System.setProperty("socksProxyPort", proxyPort)
                 System.setProperty("socksProxyVersion", proxyVersion.toString())
+                System.setProperty(
+                    "socksNonProxyHosts",
+                    socksNonProxyHosts(configuredSocksNonProxyHosts, databaseUrl, flareSolverrUrl),
+                )
 
                 Authenticator.setDefault(
                     object : Authenticator() {
@@ -437,6 +483,11 @@ fun applicationSetup() {
                 System.clearProperty("socksProxyHost")
                 System.clearProperty("socksProxyPort")
                 System.clearProperty("socksProxyVersion")
+                if (configuredSocksNonProxyHosts == null) {
+                    System.clearProperty("socksNonProxyHosts")
+                } else {
+                    System.setProperty("socksNonProxyHosts", configuredSocksNonProxyHosts)
+                }
 
                 Authenticator.setDefault(null)
             }
