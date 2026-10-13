@@ -29,11 +29,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.cef.network.CefCookieManager
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.lowerCase
+import org.jetbrains.exposed.v1.core.neq
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import suwayomi.tachidesk.global.impl.KcefWebView.Companion.toCefCookie
 import suwayomi.tachidesk.global.impl.sync.SyncManager
+import suwayomi.tachidesk.global.impl.util.Bcrypt
+import suwayomi.tachidesk.global.model.table.UserAccountTable
 import suwayomi.tachidesk.graphql.types.DatabaseType
 import suwayomi.tachidesk.i18n.LocalizationHelper
 import suwayomi.tachidesk.manga.impl.backup.proto.ProtoBackupExport
@@ -71,6 +80,7 @@ import java.net.PasswordAuthentication
 import java.net.URI
 import java.security.Security
 import java.util.Locale
+import kotlin.random.Random
 
 private val logger = KotlinLogging.logger {}
 
@@ -124,7 +134,14 @@ data class DatabaseSettings(
     val databaseUrl: String,
     val databaseUsername: String,
     val databasePassword: String,
+    val databaseSchema: String,
     val useHikariConnectionPool: Boolean,
+    val hikariMaxPoolSize: Int,
+)
+
+data class AuthSettings(
+    val authUsername: String,
+    val authPassword: String,
 )
 
 val androidCompat by lazy { AndroidCompat() }
@@ -380,19 +397,23 @@ fun applicationSetup() {
             serverConfig.databaseUrl,
             serverConfig.databaseUsername,
             serverConfig.databasePassword,
+            serverConfig.databaseSchema,
             serverConfig.useHikariConnectionPool,
+            serverConfig.hikariMaxPoolSize,
         ) { vargs ->
             DatabaseSettings(
-                vargs[0] as DatabaseType,
-                vargs[1] as String,
-                vargs[2] as String,
-                vargs[3] as String,
-                vargs[4] as Boolean,
+                databaseType = vargs[0] as DatabaseType,
+                databaseUrl = vargs[1] as String,
+                databaseUsername = vargs[2] as String,
+                databasePassword = vargs[3] as String,
+                databaseSchema = vargs[4] as String,
+                useHikariConnectionPool = vargs[5] as Boolean,
+                hikariMaxPoolSize = vargs[6] as Int,
             )
         }.distinctUntilChanged(),
-        { (databaseType, databaseUrl, _databaseUsername, _databasePassword, hikariCp) ->
+        { (databaseType, databaseUrl, _databaseUsername, _databasePassword, databaseSchema, hikariCp, hikariMaxPoolSize) ->
             logger.info {
-                "Database changed - type=$databaseType url=$databaseUrl, username=[REDACTED], password=[REDACTED], hikaricp=$hikariCp"
+                "Database changed - type=$databaseType url=$databaseUrl, username=[REDACTED], password=[REDACTED], schema=$databaseSchema, hikaricp=$hikariCp, hikariMaxPoolSize=$hikariMaxPoolSize"
             }
             if (serverConfig.socksProxyEnabled.value) {
                 System.setProperty(
@@ -519,6 +540,52 @@ fun applicationSetup() {
         serverConfig.extensionStores,
         { _ ->
             ExtensionStoreService.syncPrefsToDb()
+        },
+        ignoreInitialValue = false,
+    )
+
+    serverConfig.subscribeTo(
+        combine<Any, AuthSettings>(
+            serverConfig.authUsername,
+            serverConfig.authPassword,
+        ) { vargs ->
+            AuthSettings(
+                authUsername = vargs[0] as String,
+                authPassword = vargs[1] as String,
+            )
+        },
+        onChange = { settings ->
+            try {
+                transaction {
+                    val usernameSetting = settings.authUsername.trim().ifEmpty { "admin" }
+
+                    val username =
+                        if (
+                            UserAccountTable
+                                .select(UserAccountTable.id)
+                                .where {
+                                    (UserAccountTable.username.lowerCase() eq usernameSetting.lowercase()) and
+                                        (UserAccountTable.id neq 1)
+                                }.empty()
+                        ) {
+                            usernameSetting
+                        } else {
+                            val username = usernameSetting + Random.nextInt(9999)
+                            logger.warn { "Username taken, username now `$username`" }
+                            username
+                        }
+
+                    UserAccountTable.update({ UserAccountTable.id eq 1 }) {
+                        it[UserAccountTable.username] = username
+                        it[UserAccountTable.password] =
+                            Bcrypt.encryptPassword(
+                                settings.authPassword.trim().ifEmpty { "password" },
+                            )
+                    }
+                }
+            } catch (e: Exception) {
+                logger.error(e) { "Unable to update admin username" }
+            }
         },
         ignoreInitialValue = false,
     )

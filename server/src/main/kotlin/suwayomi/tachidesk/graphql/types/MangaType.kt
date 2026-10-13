@@ -7,6 +7,7 @@
 
 package suwayomi.tachidesk.graphql.types
 
+import com.expediagroup.graphql.generator.annotations.GraphQLDeprecated
 import com.expediagroup.graphql.server.extensions.getValueFromDataLoader
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import graphql.schema.DataFetchingEnvironment
@@ -17,11 +18,15 @@ import suwayomi.tachidesk.graphql.server.primitives.Edge
 import suwayomi.tachidesk.graphql.server.primitives.Node
 import suwayomi.tachidesk.graphql.server.primitives.NodeList
 import suwayomi.tachidesk.graphql.server.primitives.PageInfo
+import suwayomi.tachidesk.graphql.server.primitives.getNodeListFromDataLoaders
+import suwayomi.tachidesk.graphql.types.CategoryNodeList.Companion.toNodeList
+import suwayomi.tachidesk.graphql.types.ChapterNodeList.Companion.toNodeList
+import suwayomi.tachidesk.graphql.types.TrackRecordNodeList.Companion.toNodeList
 import suwayomi.tachidesk.manga.impl.MangaList
-import suwayomi.tachidesk.manga.model.dataclass.MangaDataClass
 import suwayomi.tachidesk.manga.model.dataclass.toGenreList
 import suwayomi.tachidesk.manga.model.table.MangaStatus
 import suwayomi.tachidesk.manga.model.table.MangaTable
+import suwayomi.tachidesk.manga.model.table.MangaUserTable
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
 
@@ -38,12 +43,14 @@ class MangaType(
     val description: String?,
     val genre: List<String>,
     val status: MangaStatus,
-    val inLibrary: Boolean,
-    val inLibraryAt: Long,
     val updateStrategy: UpdateStrategy,
     val realUrl: String?,
     var lastFetchedAt: Long?, // todo
     var chaptersLastFetchedAt: Long?, // todo
+    @GraphQLDeprecated("Use user.inLibrary instead")
+    val inLibrary: Boolean,
+    @GraphQLDeprecated("Use user.inLibraryAt instead")
+    val inLibraryAt: Long,
 ) : Node {
     companion object {
         fun clearCacheFor(
@@ -88,45 +95,27 @@ class MangaType(
         row[MangaTable.description],
         row[MangaTable.genre].toGenreList(),
         MangaStatus.valueOf(row[MangaTable.status]),
-        row[MangaTable.inLibrary],
-        row[MangaTable.inLibraryAt],
         UpdateStrategy.valueOf(row[MangaTable.updateStrategy]),
         row[MangaTable.realUrl],
         row[MangaTable.lastFetchedAt],
         row[MangaTable.chaptersLastFetchedAt],
+        row.getOrNull(MangaUserTable.inLibrary) ?: false,
+        row.getOrNull(MangaUserTable.inLibraryAt) ?: 0,
     )
 
-    constructor(dataClass: MangaDataClass) : this(
-        dataClass.id,
-        dataClass.sourceId.toLong(),
-        dataClass.url,
-        dataClass.title,
-        dataClass.thumbnailUrl,
-        dataClass.thumbnailUrlLastFetched,
-        dataClass.initialized,
-        dataClass.artist,
-        dataClass.author,
-        dataClass.description,
-        dataClass.genre,
-        MangaStatus.valueOf(dataClass.status),
-        dataClass.inLibrary,
-        dataClass.inLibraryAt,
-        dataClass.updateStrategy,
-        dataClass.realUrl,
-        dataClass.lastFetchedAt,
-        dataClass.chaptersLastFetchedAt,
-    )
-
+    @GraphQLDeprecated("Use user.downloadCount instead")
     fun downloadCount(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<Int> =
         dataFetchingEnvironment.getValueFromDataLoader<Int, MangaChapterStats>("ChapterFlagCountForMangaDataLoader", id).thenApply {
             it.downloadCount
         }
 
+    @GraphQLDeprecated("Use user.unreadCount instead")
     fun unreadCount(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<Int> =
         dataFetchingEnvironment.getValueFromDataLoader<Int, MangaChapterStats>("ChapterFlagCountForMangaDataLoader", id).thenApply {
             it.unreadCount
         }
 
+    @GraphQLDeprecated("Use user.bookmarkCount instead")
     fun bookmarkCount(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<Int> =
         dataFetchingEnvironment.getValueFromDataLoader<Int, MangaChapterStats>("ChapterFlagCountForMangaDataLoader", id).thenApply {
             it.bookmarkCount
@@ -135,9 +124,11 @@ class MangaType(
     fun hasDuplicateChapters(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<Boolean> =
         dataFetchingEnvironment.getValueFromDataLoader("HasDuplicateChaptersForMangaDataLoader", id)
 
+    @GraphQLDeprecated("Use user.lastReadChapter instead")
     fun lastReadChapter(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<ChapterType?> =
         dataFetchingEnvironment.getValueFromDataLoader("LastReadChapterForMangaDataLoader", id)
 
+    @GraphQLDeprecated("Use user.latestReadChapter instead")
     fun latestReadChapter(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<ChapterType?> =
         dataFetchingEnvironment.getValueFromDataLoader("LatestReadChapterForMangaDataLoader", id)
 
@@ -147,6 +138,7 @@ class MangaType(
     fun latestUploadedChapter(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<ChapterType?> =
         dataFetchingEnvironment.getValueFromDataLoader("LatestUploadedChapterForMangaDataLoader", id)
 
+    @GraphQLDeprecated("Use user.firstUnreadChapter instead")
     fun firstUnreadChapter(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<ChapterType?> =
         dataFetchingEnvironment.getValueFromDataLoader("FirstUnreadChapterForMangaDataLoader", id)
 
@@ -154,7 +146,9 @@ class MangaType(
         dataFetchingEnvironment.getValueFromDataLoader("HighestNumberedChapterForMangaDataLoader", id)
 
     fun chapters(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<ChapterNodeList> =
-        dataFetchingEnvironment.getValueFromDataLoader<Int, ChapterNodeList>("ChaptersForMangaDataLoader", id)
+        dataFetchingEnvironment.getNodeListFromDataLoaders("ChaptersForMangaDataLoader", "ChapterCountForMangaDataLoader", id) {
+            emptyList<ChapterType>().toNodeList().copy(totalCount = it)
+        }
 
     fun age(): Long? {
         if (lastFetchedAt == null) return null
@@ -171,13 +165,24 @@ class MangaType(
         dataFetchingEnvironment.getValueFromDataLoader<Int, List<MangaMetaType>>("MangaMetaDataLoader", id)
 
     fun categories(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<CategoryNodeList> =
-        dataFetchingEnvironment.getValueFromDataLoader<Int, CategoryNodeList>("CategoriesForMangaDataLoader", id)
+        dataFetchingEnvironment.getNodeListFromDataLoaders("CategoriesForMangaDataLoader", "CategoryCountForMangaDataLoader", id) {
+            emptyList<CategoryType>().toNodeList().copy(totalCount = it)
+        }
 
     fun source(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<SourceType?> =
         dataFetchingEnvironment.getValueFromDataLoader<Long, SourceType?>("SourceDataLoader", sourceId)
 
     fun trackRecords(dataFetchingEnvironment: DataFetchingEnvironment): CompletableFuture<TrackRecordNodeList> =
-        dataFetchingEnvironment.getValueFromDataLoader<Int, TrackRecordNodeList>("TrackRecordsForMangaIdDataLoader", id)
+        dataFetchingEnvironment.getNodeListFromDataLoaders("TrackRecordsForMangaIdDataLoader", "TrackRecordCountForMangaIdDataLoader", id) {
+            emptyList<TrackRecordType>().toNodeList().copy(totalCount = it)
+        }
+
+    fun user(): MangaUserType =
+        MangaUserType(
+            mangaId = id,
+            inLibrary = inLibrary,
+            inLibraryAt = inLibraryAt,
+        )
 }
 
 data class MangaNodeList(

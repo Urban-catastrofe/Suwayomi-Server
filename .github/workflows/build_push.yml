@@ -39,6 +39,20 @@ jobs:
           ProductBuildType: "Preview"
         run: ./gradlew :server:downloadWebUI :server:shadowJar --stacktrace
 
+      - name: Run regression tests
+        env:
+          ProductBuildType: "Preview"
+        run: |
+          ./gradlew :server:test --stacktrace \
+            --tests '*UserContextTest' \
+            --tests '*UserMutationTest' \
+            --tests '*PermissionsTest' \
+            --tests '*SourceUpdatePacerTest' \
+            --tests '*SourceUpdatePolicyTest' \
+            --tests '*CloudflareCooldownTest' \
+            --tests '*HttpExceptionTest' \
+            --tests '*SocksProxyTest'
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v6
         with:

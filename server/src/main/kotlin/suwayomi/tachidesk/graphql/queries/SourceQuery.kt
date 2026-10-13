@@ -8,6 +8,7 @@
 package suwayomi.tachidesk.graphql.queries
 
 import com.expediagroup.graphql.generator.annotations.GraphQLDeprecated
+import com.expediagroup.graphql.generator.annotations.GraphQLIgnore
 import com.expediagroup.graphql.server.extensions.getValueFromDataLoader
 import graphql.schema.DataFetchingEnvironment
 import org.jetbrains.exposed.v1.core.Column
@@ -17,6 +18,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greater
 import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.jdbc.andWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import suwayomi.tachidesk.graphql.directives.RequireAuth
@@ -35,6 +37,7 @@ import suwayomi.tachidesk.graphql.server.primitives.Cursor
 import suwayomi.tachidesk.graphql.server.primitives.Order
 import suwayomi.tachidesk.graphql.server.primitives.OrderBy
 import suwayomi.tachidesk.graphql.server.primitives.PageInfo
+import suwayomi.tachidesk.graphql.server.primitives.PaginationNeeds
 import suwayomi.tachidesk.graphql.server.primitives.QueryResults
 import suwayomi.tachidesk.graphql.server.primitives.applyBeforeAfter
 import suwayomi.tachidesk.graphql.server.primitives.applySortAndGetPaginationInfo
@@ -45,6 +48,7 @@ import suwayomi.tachidesk.graphql.types.SourceType
 import suwayomi.tachidesk.manga.model.dataclass.ContentWarning
 import suwayomi.tachidesk.manga.model.table.SourceTable
 import suwayomi.tachidesk.server.JavalinSetup.future
+import suwayomi.tachidesk.server.user.UserPermission
 import java.util.concurrent.CompletableFuture
 
 class SourceQuery {
@@ -52,7 +56,15 @@ class SourceQuery {
     fun source(
         dataFetchingEnvironment: DataFetchingEnvironment,
         id: Long,
-    ): CompletableFuture<SourceType> = dataFetchingEnvironment.getValueFromDataLoader("SourceDataLoader", id)
+        @GraphQLIgnore
+        permissions: List<UserPermission>,
+    ): CompletableFuture<SourceType> =
+        dataFetchingEnvironment.getValueFromDataLoader<Long, SourceType>("SourceDataLoader", id).thenApply { source ->
+            // if (source != null && source.contentWarning >= ContentWarning.MIXED && !permissions.hasPermission(UserPermission.ACCESS_NSFW)) {
+            //     throw ForbiddenException()
+            // }
+            source
+        }
 
     enum class SourceOrderBy(
         override val column: Column<*>,
@@ -140,6 +152,9 @@ class SourceQuery {
 
     @RequireAuth
     fun sources(
+        @GraphQLIgnore
+        permissions: List<UserPermission>,
+        dataFetchingEnvironment: DataFetchingEnvironment,
         condition: SourceCondition? = null,
         filter: SourceFilter? = null,
         @GraphQLDeprecated(
@@ -166,11 +181,23 @@ class SourceQuery {
 
                     res.applyOps(condition, filter)
 
+                    // hide NSFW sources from users without the NSFW permission
+                    // if (!permissions.hasPermission(UserPermission.ACCESS_NSFW)) {
+                    //     res.andWhere { SourceTable.contentWarning less ContentWarning.MIXED.ordinal }
+                    // }
+
                     val baseSort = listOf(SourceOrder(SourceOrderBy.ID, SortOrder.ASC))
                     val deprecatedSort = listOfNotNull(orderBy?.let { SourceOrder(orderBy, orderByType) })
                     val actualSort = (order.orEmpty() + deprecatedSort + baseSort)
 
-                    val (total, firstResult, lastResult) = res.applySortAndGetPaginationInfo(actualSort, before, last, SourceTable.id)
+                    val (total, firstResult, lastResult) =
+                        res.applySortAndGetPaginationInfo(
+                            actualSort,
+                            before,
+                            last,
+                            SourceTable.id,
+                            PaginationNeeds.of(dataFetchingEnvironment),
+                        )
 
                     res.applyBeforeAfter(
                         before = before,

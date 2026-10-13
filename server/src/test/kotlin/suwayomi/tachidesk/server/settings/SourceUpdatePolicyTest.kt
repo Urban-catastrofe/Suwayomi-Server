@@ -38,6 +38,16 @@ class SourceUpdatePolicyTest {
     }
 
     @Test
+    fun `pre merge policy backups keep their field number`() {
+        // Field 98 contains a policy for source "123", with all optional values omitted.
+        val bytes = byteArrayOf(0x92.toByte(), 0x06, 0x05, 0x0a, 0x03, 0x31, 0x32, 0x33)
+        val restored = ProtoBuf.decodeFromByteArray(BackupServerSettings.serializer(), bytes)
+
+        assertEquals(listOf(SourceUpdatePolicy("123")), restored.sourceUpdatePolicies)
+        assertNull(restored.autoBackupIncludeUserSettings)
+    }
+
+    @Test
     fun `policies are available in both GraphQL settings input and output`() {
         val schema =
             toSchema(

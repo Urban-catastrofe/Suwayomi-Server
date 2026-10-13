@@ -8,11 +8,13 @@
 package suwayomi.tachidesk.graphql.queries
 
 import com.expediagroup.graphql.generator.annotations.GraphQLDeprecated
+import com.expediagroup.graphql.generator.annotations.GraphQLIgnore
 import com.expediagroup.graphql.server.extensions.getValueFromDataLoader
 import graphql.schema.DataFetchingEnvironment
 import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greater
 import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -29,6 +31,7 @@ import suwayomi.tachidesk.graphql.server.primitives.Cursor
 import suwayomi.tachidesk.graphql.server.primitives.Order
 import suwayomi.tachidesk.graphql.server.primitives.OrderBy
 import suwayomi.tachidesk.graphql.server.primitives.PageInfo
+import suwayomi.tachidesk.graphql.server.primitives.PaginationNeeds
 import suwayomi.tachidesk.graphql.server.primitives.QueryResults
 import suwayomi.tachidesk.graphql.server.primitives.applyBeforeAfter
 import suwayomi.tachidesk.graphql.server.primitives.applySortAndGetPaginationInfo
@@ -108,6 +111,9 @@ class MetaQuery {
 
     @RequireAuth
     fun metas(
+        @GraphQLIgnore
+        userId: Int,
+        dataFetchingEnvironment: DataFetchingEnvironment,
         condition: MetaCondition? = null,
         filter: MetaFilter? = null,
         @GraphQLDeprecated(
@@ -129,7 +135,7 @@ class MetaQuery {
     ): GlobalMetaNodeList {
         val queryResults =
             transaction {
-                val res = GlobalMetaTable.selectAll()
+                val res = GlobalMetaTable.selectAll().where { GlobalMetaTable.user eq userId }
 
                 res.applyOps(condition, filter)
 
@@ -142,6 +148,7 @@ class MetaQuery {
                         actualSort,
                         before,
                         last,
+                        PaginationNeeds.of(dataFetchingEnvironment),
                     ) { it?.get(GlobalMetaTable.key) }
 
                 res.applyBeforeAfter(
