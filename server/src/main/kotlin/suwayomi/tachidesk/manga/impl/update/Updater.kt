@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import suwayomi.tachidesk.global.impl.sync.SyncManager
 import suwayomi.tachidesk.manga.impl.Category
 import suwayomi.tachidesk.manga.impl.CategoryManga
@@ -82,6 +81,9 @@ class Updater : IUpdater {
 
     private val tracker = ConcurrentHashMap<Int, UpdateJob>()
     private val updateChannels = ConcurrentHashMap<String, Channel<UpdateJob>>()
+
+    // Retain deadlines across queue resets so requeueing cannot immediately repeat blocked requests.
+    private val sourceUpdatePacers = ConcurrentHashMap<String, SourceUpdatePacer>()
 
     private var maxSourcesInParallel = 20 // max permits, necessary to be set to be able to release up to 20 permits
     private val semaphore = Semaphore(maxSourcesInParallel)
@@ -267,53 +269,59 @@ class Updater : IUpdater {
     }
 
     private fun getOrCreateUpdateChannelFor(source: String): Channel<UpdateJob> =
-        updateChannels.getOrPut(source) {
+        updateChannels.computeIfAbsent(source) {
             logger.debug { "getOrCreateUpdateChannelFor: created channel for $source - channels: ${updateChannels.size + 1}" }
             createUpdateChannel(source)
         }
 
     private fun createUpdateChannel(source: String): Channel<UpdateJob> {
         val channel = Channel<UpdateJob>(Channel.UNLIMITED)
+        val pacer =
+            sourceUpdatePacers.computeIfAbsent(source) {
+                SourceUpdatePacer(
+                    semaphore,
+                    policy = { serverConfig.sourceUpdatePolicies.value.firstOrNull { it.sourceId == source } },
+                )
+            }
         channel
             .consumeAsFlow()
             .onEach { job ->
-                semaphore.withPermit {
-                    process(job)
-                }
+                process(job, pacer)
             }.catch {
                 logger.error(it) { "Error during updates (source: $source)" }
                 handleChannelUpdateFailure(source)
-            }.onCompletion { updateChannels.remove(source) }
+            }.onCompletion { updateChannels.remove(source, channel) }
             .launchIn(scope)
         return channel
     }
 
     private suspend fun handleChannelUpdateFailure(source: String) {
-        val isFailedSourceUpdate = { job: UpdateJob ->
-            val isForSource = job.manga.sourceId == source
-            val hasFailed = job.status == JobStatus.FAILED
-
-            isForSource && hasFailed
-        }
-
-        // fail all updates for source
-        val sourceUpdateJobs = tracker.filter { (_, job) -> !isFailedSourceUpdate(job) }
-        sourceUpdateJobs.forEach { (mangaId, job) -> tracker[mangaId] = job.copy(status = JobStatus.FAILED) }
+        val sourceUpdateJobs =
+            tracker
+                .filter { (_, job) ->
+                    job.manga.sourceId == source && (job.status == JobStatus.PENDING || job.status == JobStatus.RUNNING)
+                }.mapValues { (_, job) -> job.copy(status = JobStatus.FAILED) }
+        tracker.putAll(sourceUpdateJobs)
 
         updateStatus(mangaUpdates = sourceUpdateJobs.values.toList())
     }
 
-    private suspend fun process(job: UpdateJob) {
-        tracker[job.manga.id] = job.copy(status = JobStatus.RUNNING)
-        updateStatus(mangaUpdates = listOf(tracker[job.manga.id]!!))
-
+    private suspend fun process(
+        job: UpdateJob,
+        pacer: SourceUpdatePacer,
+    ) {
         tracker[job.manga.id] =
             try {
-                logger.info { "Updating ${job.manga}" }
-                Manga.updateMangaAndChapters(
-                    job.manga.id,
-                    updateManga = serverConfig.updateMangas.value || !job.manga.initialized,
-                )
+                pacer.run {
+                    tracker[job.manga.id] = job.copy(status = JobStatus.RUNNING)
+                    updateStatus(mangaUpdates = listOf(tracker[job.manga.id]!!))
+
+                    logger.info { "Updating ${job.manga}" }
+                    Manga.updateMangaAndChapters(
+                        job.manga.id,
+                        updateManga = serverConfig.updateMangas.value || !job.manga.initialized,
+                    )
+                }
                 job.copy(status = JobStatus.COMPLETE)
             } catch (e: Exception) {
                 logger.error(e) { "Error while updating ${job.manga}" }

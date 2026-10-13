@@ -33,6 +33,7 @@ import suwayomi.tachidesk.graphql.types.KoreaderSyncConflictStrategy
 import suwayomi.tachidesk.graphql.types.KoreaderSyncLegacyStrategy
 import suwayomi.tachidesk.graphql.types.SettingsDownloadConversionHeaderType
 import suwayomi.tachidesk.graphql.types.SettingsDownloadConversionType
+import suwayomi.tachidesk.graphql.types.SourceUpdatePolicy
 import suwayomi.tachidesk.graphql.types.WebUIChannel
 import suwayomi.tachidesk.graphql.types.WebUIFlavor
 import suwayomi.tachidesk.graphql.types.WebUIInterface
@@ -51,6 +52,7 @@ import suwayomi.tachidesk.server.settings.ListSetting
 import suwayomi.tachidesk.server.settings.MapSetting
 import suwayomi.tachidesk.server.settings.MigratedConfigValue
 import suwayomi.tachidesk.server.settings.PathSetting
+import suwayomi.tachidesk.server.settings.SettingDelegate
 import suwayomi.tachidesk.server.settings.SettingGroup
 import suwayomi.tachidesk.server.settings.SettingsRegistry
 import suwayomi.tachidesk.server.settings.StringSetting
@@ -1145,6 +1147,24 @@ class ServerConfig(
                 specificType = "List<String>",
             ),
         description = "List of extension store index URLs",
+    )
+
+    val sourceUpdatePolicies: MutableStateFlow<List<SourceUpdatePolicy>> by SettingDelegate(
+        protoNumber = 98,
+        group = SettingGroup.LIBRARY_UPDATES,
+        privacySafe = false,
+        defaultValue = emptyList(),
+        validator = SourceUpdatePolicy::validate,
+        typeInfo =
+            SettingsRegistry.PartialTypeInfo(
+                specificType = "List<SourceUpdatePolicy>",
+                imports = listOf("suwayomi.tachidesk.graphql.types.SourceUpdatePolicy"),
+            ),
+        description =
+            "Per-source library update pacing and cooldowns, in seconds. " +
+                "Example: [{ sourceId = \"123\", minDelaySeconds = 60, maxDelaySeconds = 300, " +
+                "initialCooldownSeconds = 1800, maxCooldownSeconds = 21600 }]. " +
+                "An empty list disables pacing. Applies to queued library updates, not downloads or individual HTTP requests.",
     )
 
     /** ****************************************************************** **/

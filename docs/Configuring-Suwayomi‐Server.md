@@ -123,12 +123,68 @@ server.excludeNotStarted = true
 server.excludeCompleted = true
 server.globalUpdateInterval = 12
 server.updateMangas = false
+server.sourceUpdatePolicies = []
 ```
 - `server.excludeUnreadChapters = true` controls if Suwayomi should include titles with unread chapters in the library update.
 - `server.excludeNotStarted = true` controls if Suwayomi should include titles which weren't started yet in the library update.
 - `server.excludeCompleted = true` controls if Suwayomi should include titles which are marked completed in the library update.
 - `server.globalUpdateInterval = 12` sets the time in hours for the automatic library internal, `0` to disable it. Range: 6 <= n < ∞
 - `server.updateMangas = false` controls if Suwayomi should also update title metadata along with fetching new chapters in the library update.
+
+#### Per-source update pacing and cooldowns
+
+`server.sourceUpdatePolicies` makes queued library updates gentler on selected sources. For example:
+
+```conf
+server.sourceUpdatePolicies = [
+  {
+    sourceId = "123456789"       # Replace with the source's numeric ID
+    minDelaySeconds = 60
+    maxDelaySeconds = 300
+    initialCooldownSeconds = 1800
+    maxCooldownSeconds = 21600
+  }
+]
+```
+
+The values above are the defaults for an entry, so `{ sourceId = "123456789" }` is sufficient. An empty list (the default) disables these policies. Source IDs must be quoted strings and may appear only once. The delay bounds must be non-negative and ordered; the cooldown bounds must be positive and ordered. Equal delay bounds give a fixed pause. Zero delay bounds enable cooldowns without adding normal pauses.
+
+To find the correct ID, query installed sources in `/api/graphql`:
+
+```graphql
+query {
+  sources {
+    nodes { id name lang }
+  }
+}
+```
+
+Policies are also exposed through the GraphQL settings API. For example (this replaces the entire policy list):
+
+```graphql
+mutation {
+  setSettings(input: { settings: { sourceUpdatePolicies: [{
+    sourceId: "123456789"
+    minDelaySeconds: 60
+    maxDelaySeconds: 300
+    initialCooldownSeconds: 1800
+    maxCooldownSeconds: 21600
+  }] } }) {
+    settings {
+      sourceUpdatePolicies { sourceId minDelaySeconds maxDelaySeconds initialCooldownSeconds maxCooldownSeconds }
+    }
+  }
+}
+```
+
+- The first manga can update immediately. Subsequent manga wait a randomly selected 60–300 seconds after the previous attempt finishes, including failed attempts. Time already spent idle counts towards the wait.
+- An HTTP 429 or a detected, unresolved Cloudflare challenge pauses the source's remaining queue. The default cooldown starts at 30 minutes and doubles on repeated protection failures, up to 6 hours. A successful update resets this escalation. Ordinary fetch or parsing errors receive only the normal pause.
+- `Retry-After` is honored when supplied through the standard HTTP helpers, in either seconds or HTTP-date form. A longer server-requested wait takes precedence over the configured cooldown cap.
+- The failed manga is marked failed; it is not automatically retried. Later manga remain pending until the cooldown expires, then the next queued manga is attempted. Cooldowns are logged with the source ID and duration.
+- Waiting sources do not consume parallel update slots. Stopping an update cancels its waits. Timing and cooldown escalation survive queue resets, but are held in memory and reset when the server restarts. Settings changes apply when the next queued job starts; they do not interrupt an already scheduled wait.
+- This applies to automatic and manually queued library updates. Browsing, direct manga refreshes, reading, chapter downloads and extension-internal retries use their existing request paths. A single manga update may still make multiple HTTP requests. Configure separate language IDs individually when they use the same site.
+
+For 30 manga, a 60–300 second pause adds about 87 minutes on average. Your `globalUpdateInterval` remains independent of these pauses. Keeping `updateMangas = false` avoids extra metadata refreshes for initialized manga; automatic downloads can still add substantial traffic.
 
 ### Authentication
 ```
@@ -226,6 +282,18 @@ server.flareSolverrAsResponseFallback = false
 **Note:** Byparr is a popular alternative to FlareSolverr. It uses the same API schema as FlareSolverr, so you can also configure the address of a Byparr instance in `server.flareSolverrUrl`.
 
 **Note:** The example [docker-compose.yml file](https://github.com/Suwayomi/Suwayomi-Server-docker/blob/main/docker-compose.yml) contains everything you need to get started with Suwayomi+Byparr.
+
+#### Solving a challenge manually
+
+Suwayomi's server-side WebView streams an interactive Chromium browser to your client. Use your client's **Open in WebView** action, or open `/api/v1/webview` on your Suwayomi server and enter the affected source URL. For MangaBall, a direct link is:
+
+```text
+https://YOUR-SUWAYOMI-SERVER/api/v1/webview#https%3A%2F%2Fmangaball.com%2F
+```
+
+Include your configured WebUI subpath before `/api` if applicable. The server must have working Chromium/KCEF support and its runtime dependencies. Solve the challenge in that view, wait for the source to load, then close the WebView so its cookies are copied back to Suwayomi. Pending library updates resume when their cooldown expires; failed manga can be queued again later.
+
+The browser runs on the server, so it can use the server's outbound connection. Opening the source directly in your local browser generally will not clear the server's challenge. Cookie reuse also depends on compatible browser/session details and network routing; manual solving cannot guarantee that Cloudflare accepts subsequent requests.
 
 ### OPDS
 ```

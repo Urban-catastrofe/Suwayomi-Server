@@ -67,7 +67,7 @@ fun Call.asObservableSuccess(): Observable<Response> {
     return asObservable().doOnNext { response ->
         if (!response.isSuccessful) {
             response.close()
-            throw HttpException(response.code)
+            throw HttpException(response)
         }
     }
 }
@@ -121,7 +121,7 @@ suspend fun Call.awaitSuccess(): Response {
     val response = await(callStack)
     if (!response.isSuccessful) {
         response.close()
-        throw HttpException(response.code).apply { stackTrace = callStack }
+        throw HttpException(response).apply { stackTrace = callStack }
     }
     return response
 }

@@ -1,9 +1,12 @@
 package eu.kanade.tachiyomi.network.interceptor
 
+import eu.kanade.tachiyomi.network.CloudflareChallengeException
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.await
+import eu.kanade.tachiyomi.network.isCloudflareChallenge
 import eu.kanade.tachiyomi.network.parseAs
+import eu.kanade.tachiyomi.network.retryAfterDelay
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.SharingStarted
@@ -47,12 +50,13 @@ class CloudflareInterceptor(
         val originalResponse = chain.proceed(originalRequest)
 
         // Check if Cloudflare anti-bot is on
-        if (!(originalResponse.code in ERROR_CODES && originalResponse.header("Server") in SERVER_CHECK)) {
+        if (!originalResponse.isCloudflareChallenge()) {
             return originalResponse
         }
 
         if (!serverConfig.flareSolverrEnabled.value) {
-            throw IOException("Cloudflare bypass currently disabled")
+            originalResponse.close()
+            throw CloudflareChallengeException("Cloudflare bypass currently disabled", originalResponse.retryAfterDelay())
         }
 
         logger.debug { "Cloudflare anti-bot is on, CloudflareInterceptor is kicking in..." }
@@ -61,10 +65,16 @@ class CloudflareInterceptor(
 
         return try {
             originalResponse.close()
-            resolveCloudflare(chain, originalRequest, originalResponse, flareResponseFallback)
+            val response = resolveCloudflare(chain, originalRequest, originalResponse, flareResponseFallback)
+            if (response.isCloudflareChallenge()) {
+                response.close()
+                throw CloudflareChallengeException(retryAfter = response.retryAfterDelay())
+            }
+            response
         } catch (e: Exception) {
             // Because OkHttp's enqueue only handles IOExceptions, wrap the exception so that we don't crash the entire app
-            throw IOException(e)
+            if (e is CloudflareChallengeException) throw e
+            throw CloudflareChallengeException(retryAfter = originalResponse.retryAfterDelay(), cause = e)
         }
     }
 
@@ -169,6 +179,7 @@ class CloudflareInterceptor(
                 return originalResponse
                     .newBuilder()
                     .code(flareResponse.solution.status)
+                    .removeHeader("cf-mitigated")
                     .body(flareResponse.solution.response.toResponseBody())
                     .build()
             } else {
@@ -195,8 +206,6 @@ class CloudflareInterceptor(
     }
 
     companion object {
-        private val ERROR_CODES = listOf(403, 503)
-        private val SERVER_CHECK = arrayOf("cloudflare-nginx", "cloudflare")
         val COOKIE_NAMES = listOf("cf_clearance")
         private val CHROME_IMAGE_TEMPLATE_REGEX = Regex("""<title>(.*?) \(\d+×\d+\)</title>""")
     }
