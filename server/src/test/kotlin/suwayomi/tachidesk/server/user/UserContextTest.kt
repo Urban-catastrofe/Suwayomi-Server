@@ -125,7 +125,10 @@ class UserContextTest : GraphQLTest() {
                     match<Cookie> {
                         it.name == "suwayomi-server-token" &&
                             it.value.isNotBlank() &&
-                            it.maxAge == serverConfig.jwtRefreshExpiry.value.inWholeSeconds.toInt()
+                            it.maxAge ==
+                            serverConfig.jwtRefreshExpiry.value
+                                .inWholeSeconds
+                                .toInt()
                     },
                 )
             }

@@ -64,7 +64,7 @@ class SourceUpdatePolicyTest {
         assertNotNull(output.getFieldDefinition("sourceId"))
         assertNotNull(output.getFieldDefinition("initialCooldownSeconds"))
 
-        val mutation = schema.mutationType.getFieldDefinition("setSettings")
+        val mutation = assertNotNull(schema.mutationType).getFieldDefinition("setSettings")
         val input = GraphQLTypeUtil.unwrapAll(mutation.getArgument("input").type) as GraphQLInputObjectType
         val partial = GraphQLTypeUtil.unwrapAll(input.getFieldDefinition("settings").type) as GraphQLInputObjectType
         val policyInput = GraphQLTypeUtil.unwrapAll(partial.getFieldDefinition("sourceUpdatePolicies").type) as GraphQLInputObjectType

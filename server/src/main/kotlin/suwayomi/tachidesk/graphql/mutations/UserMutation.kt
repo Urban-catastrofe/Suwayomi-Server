@@ -69,8 +69,11 @@ class UserMutation {
                 val jwt = Jwt.generateJwt(user[UserAccountTable.id].value)
 
                 // Keep browser sessions across restarts while enforcing JWT expiry on the server.
-                dataFetchingEnvironment.graphQlContext.get<Context?>(Context::class)?.let { ctx ->
-                    val cookieMaxAge = serverConfig.jwtRefreshExpiry.value.inWholeSeconds.toInt()
+                dataFetchingEnvironment.graphQlContext.get<Context>(Context::class)?.let { ctx ->
+                    val cookieMaxAge =
+                        serverConfig.jwtRefreshExpiry.value
+                            .inWholeSeconds
+                            .toInt()
                     ctx.cookie(createAuthCookie(ctx, "suwayomi-server-token", jwt.accessToken, cookieMaxAge))
                     ctx.cookie(createAuthCookie(ctx, "suwayomi-server-refresh-token", jwt.refreshToken, cookieMaxAge))
                 }
@@ -104,7 +107,7 @@ class UserMutation {
         }
 
         // Clear the authentication cookies by setting them with maxAge=0
-        dataFetchingEnvironment.graphQlContext.get<Context?>(Context::class)?.let { ctx ->
+        dataFetchingEnvironment.graphQlContext.get<Context>(Context::class)?.let { ctx ->
             ctx.cookie(createAuthCookie(ctx, "suwayomi-server-token", "", 0))
             ctx.cookie(createAuthCookie(ctx, "suwayomi-server-refresh-token", "", 0))
         }
@@ -132,8 +135,11 @@ class UserMutation {
         future {
             val accessToken = Jwt.refreshJwt(input.refreshToken)
 
-            dataFetchingEnvironment.graphQlContext.get<Context?>(Context::class)?.let { ctx ->
-                val cookieMaxAge = serverConfig.jwtRefreshExpiry.value.inWholeSeconds.toInt()
+            dataFetchingEnvironment.graphQlContext.get<Context>(Context::class)?.let { ctx ->
+                val cookieMaxAge =
+                    serverConfig.jwtRefreshExpiry.value
+                        .inWholeSeconds
+                        .toInt()
                 ctx.cookie(createAuthCookie(ctx, "suwayomi-server-token", accessToken, cookieMaxAge))
             }
 
