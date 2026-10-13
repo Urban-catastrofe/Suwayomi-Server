@@ -91,7 +91,7 @@ object Jwt {
 
         // without this check, a stale refresh token would keep minting valid access tokens
         // after the account's session version was bumped
-        val user = jwt.subject.toInt()
+        val user = requireNotNull(jwt.subject?.toIntOrNull()) { "Invalid token subject" }
         val tokenVersion = jwt.getClaim("token_version").asInt()
         require(tokenVersion == SessionVersion.current(user)) {
             "Token revoked by a password change"
@@ -108,7 +108,7 @@ object Jwt {
                 "Invalid token audience ${decodedJWT.audience}"
             }
 
-            val user = decodedJWT.subject.toInt()
+            val user = requireNotNull(decodedJWT.subject?.toIntOrNull()) { "Invalid token subject" }
 
             // tokens minted before a session version bump (e.g. a password change) are
             // rejected; tokens lacking the claim entirely are rejected as well

@@ -1,5 +1,7 @@
 package suwayomi.tachidesk.server.user
 
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
 import io.javalin.http.Context
 import io.javalin.http.Cookie
 import io.javalin.http.Header
@@ -16,6 +18,7 @@ import suwayomi.tachidesk.global.model.table.UserPermissionsTable
 import suwayomi.tachidesk.graphql.types.AuthMode
 import suwayomi.tachidesk.server.serverConfig
 import suwayomi.tachidesk.test.GraphQLTest
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -159,6 +162,24 @@ class UserContextTest : GraphQLTest() {
             every { ctx.cookie("suwayomi-server-refresh-token") } returns tokens.accessToken
 
             assertIs<UserType.Visitor>(getUserFromContext(ctx))
+        }
+
+    @Test
+    fun legacyRefreshCookieWithoutSubjectResolvesToVisitor() =
+        runTest {
+            val legacyToken =
+                JWT
+                    .create()
+                    .withAudience("${serverConfig.jwtAudience.value}-refresh")
+                    .withExpiresAt(Instant.now().plusSeconds(60))
+                    .sign(Algorithm.HMAC256(Jwt.generateSecret()))
+
+            noAuthHeader(ctx)
+            every { ctx.cookie("suwayomi-server-token") } returns null
+            every { ctx.cookie("suwayomi-server-refresh-token") } returns legacyToken
+
+            assertIs<UserType.Visitor>(getUserFromContext(ctx))
+            verify(exactly = 0) { ctx.cookie(any<Cookie>()) }
         }
 
     @Test
