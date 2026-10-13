@@ -11,6 +11,8 @@ import org.cef.CefClient
 private val logger = KotlinLogging.logger {}
 
 object CefHelper {
+    const val INITIALIZATION_URL = "about:blank#suwayomi-initialization"
+
     val cefApp = MutableStateFlow<Result<CefApp?>>(Result.success(null))
 
     suspend fun createClient(): CefClient {

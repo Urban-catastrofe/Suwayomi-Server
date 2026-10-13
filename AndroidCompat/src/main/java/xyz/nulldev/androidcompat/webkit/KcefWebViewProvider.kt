@@ -89,6 +89,7 @@ import java.io.BufferedWriter
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 import javax.swing.JPanel
 import kotlin.math.min
@@ -105,6 +106,7 @@ class KcefWebViewProvider(
     private val renderHandler = RenderHandler()
     private val mappings: MutableList<FunctionMapping> = mutableListOf()
     private val urlHttpMapping: MutableMap<String, String> = mutableMapOf()
+    private val initialUrls = ConcurrentHashMap<CefBrowser, String>()
     private var initialRequestData: InitialRequestData? = null
 
     private var kcefClient: CefClient? = null
@@ -150,7 +152,12 @@ class KcefWebViewProvider(
                 } else {
                     Log.v(TAG, "Successfully set user agent: $res")
                 }
+                initialUrls.remove(browser)?.let(browser::loadURL)
             }
+        }
+
+        override fun onBeforeClose(browser: CefBrowser) {
+            initialUrls.remove(browser)
         }
     }
 
@@ -263,6 +270,7 @@ class KcefWebViewProvider(
             httpStatusCode: Int,
         ) {
             val url = frame.url ?: ""
+            if (url == CefHelper.INITIALIZATION_URL) return
             Log.v(TAG, "Load end $url")
             handler.post {
                 if (httpStatusCode == 404) {
@@ -297,6 +305,7 @@ class KcefWebViewProvider(
             errorText: String,
             failedUrl: String,
         ) {
+            if (failedUrl == CefHelper.INITIALIZATION_URL) return
             Log.w(TAG, "Load error ($failedUrl) [$errorCode]: $errorText")
             // TODO: translate correctly
             handler.post {
@@ -309,6 +318,7 @@ class KcefWebViewProvider(
             frame: CefFrame,
             transitionType: CefRequest.TransitionType,
         ) {
+            if (frame.url == CefHelper.INITIALIZATION_URL) return
             Log.v(TAG, "Load start, pushing mappings")
             mappings.forEach {
                 val js =
@@ -464,6 +474,7 @@ class KcefWebViewProvider(
             frame: CefFrame?,
             request: CefRequest,
         ): Boolean {
+            if (request.url == CefHelper.INITIALIZATION_URL) return false
             initialRequestData?.apply(request)
             initialRequestData = null
 
@@ -486,6 +497,7 @@ class KcefWebViewProvider(
             frame: CefFrame,
             request: CefRequest,
         ): CefResourceHandler? {
+            if (request.url == CefHelper.INITIALIZATION_URL) return null
             val isInitialLoad = frame.url == "" && request.method == "GET"
             Log.v(TAG, "Request ${request.method} ${request.url} is initial? $isInitialLoad")
             // NOTE: we should be calling this on the handler, since CEF calls us on its IO thread
@@ -633,6 +645,7 @@ class KcefWebViewProvider(
     ): Array<String> = throw RuntimeException("Stub!")
 
     override fun destroy() {
+        initialUrls.clear()
         browser?.close(true)
         browser?.dispose()
         browser = null
@@ -656,6 +669,19 @@ class KcefWebViewProvider(
 
     override fun restoreState(inState: Bundle): WebBackForwardList = throw RuntimeException("Stub!")
 
+    private fun createBrowser(url: String): CefBrowser =
+        kcefClient!!
+            .createBrowser(
+                // The first navigation must wait for the asynchronous user-agent override.
+                CefHelper.INITIALIZATION_URL,
+                CefRendering.CefRenderingWithHandler(renderHandler, JPanel()),
+                false,
+            ).apply {
+                initialUrls[this] = url
+                // NOTE: Without this, we don't seem to be receiving any events
+                createImmediately()
+            }
+
     override fun loadUrl(
         loadUrl: String,
         additionalHttpHeaders: Map<String, String>,
@@ -664,16 +690,7 @@ class KcefWebViewProvider(
         browser?.dispose()
         chromeClient.onProgressChanged(view, 0)
         initialRequestData = InitialRequestData(additionalHttpHeaders = additionalHttpHeaders)
-        browser =
-            kcefClient!!
-                .createBrowser(
-                    loadUrl,
-                    CefRendering.CefRenderingWithHandler(renderHandler, JPanel()),
-                    false,
-                ).apply {
-                    // NOTE: Without this, we don't seem to be receiving any events
-                    createImmediately()
-                }
+        browser = createBrowser(loadUrl)
         Log.d(TAG, "Page loaded at URL $loadUrl")
     }
 
@@ -689,16 +706,7 @@ class KcefWebViewProvider(
         browser?.dispose()
         chromeClient.onProgressChanged(view, 0)
         initialRequestData = InitialRequestData(myPostData = postData)
-        browser =
-            kcefClient!!
-                .createBrowser(
-                    url,
-                    CefRendering.CefRenderingWithHandler(renderHandler, JPanel()),
-                    false,
-                ).apply {
-                    // NOTE: Without this, we don't seem to be receiving any events
-                    createImmediately()
-                }
+        browser = createBrowser(url)
         Log.d(TAG, "Page posted at URL $url")
     }
 
@@ -723,16 +731,7 @@ class KcefWebViewProvider(
         val url = baseUrl ?: "about:blank"
         urlHttpMapping[url.trimEnd('/')] = data
 
-        browser =
-            kcefClient!!
-                .createBrowser(
-                    url,
-                    CefRendering.CefRenderingWithHandler(renderHandler, JPanel()),
-                    false,
-                ).apply {
-                    // NOTE: Without this, we don't seem to be receiving any events
-                    createImmediately()
-                }
+        browser = createBrowser(url)
         Log.d(TAG, "Page loaded from data at base URL $baseUrl")
     }
 

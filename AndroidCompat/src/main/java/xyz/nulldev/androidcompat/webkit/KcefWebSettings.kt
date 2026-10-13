@@ -463,10 +463,11 @@ class KcefWebSettings : WebSettings() {
         fun toMap(): Map<String, Any?> =
             mapOf(
                 BRAND_VERSION_LIST to
-                    brands?.map {
-                        val fullVersion = fullVersionList?.first { f -> f.brand == it.brand }?.version ?: it.version
-                        arrayOf(it.brand, it.version, fullVersion)
-                    },
+                    brands
+                        ?.map {
+                            val fullVersion = fullVersionList?.first { f -> f.brand == it.brand }?.version ?: it.version
+                            arrayOf(it.brand, it.version, fullVersion)
+                        }?.toTypedArray(),
                 FULL_VERSION to fullVersion,
                 PLATFORM to platform,
                 PLATFORM_VERSION to platformVersion,
@@ -475,7 +476,7 @@ class KcefWebSettings : WebSettings() {
                 MOBILE to mobile,
                 BITNESS to bitness,
                 WOW64 to wow64,
-                FORM_FACTORS to formFactors,
+                FORM_FACTORS to formFactors?.toTypedArray(),
             )
 
         companion object {

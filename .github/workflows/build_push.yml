@@ -50,6 +50,7 @@ jobs:
             --tests '*SourceUpdatePacerTest' \
             --tests '*SourceUpdatePolicyTest' \
             --tests '*CloudflareCooldownTest' \
+            --tests '*KcefWebSettingsTest' \
             --tests '*HttpExceptionTest' \
             --tests '*SocksProxyTest'
 

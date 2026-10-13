@@ -41,6 +41,7 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Date
+import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
 import javax.swing.JPanel
 
@@ -49,6 +50,7 @@ class KcefWebView {
     private val renderHandler = RenderHandler()
     private var kcefClient: CefClient? = null
     private var browser: CefBrowser? = null
+    private val initialUrls = ConcurrentHashMap<CefBrowser, String>()
     private var width = 1000
     private var height = 1000
 
@@ -138,7 +140,12 @@ class KcefWebView {
                 } else {
                     logger.debug { "Successfully set user agent: $res" }
                 }
+                initialUrls.remove(browser)?.let(browser::loadURL)
             }
+        }
+
+        override fun onBeforeClose(browser: CefBrowser) {
+            initialUrls.remove(browser)
         }
     }
 
@@ -164,7 +171,7 @@ class KcefWebView {
             frame: CefFrame,
             url: String,
         ) {
-            if (!frame.isMain) return
+            if (!frame.isMain || url == CefHelper.INITIALIZATION_URL) return
             this@KcefWebView.browser!!.evaluateJavaScript("return document.title") {
                 WebView.notifyAllClients(
                     Json.encodeToString<Event>(
@@ -193,6 +200,7 @@ class KcefWebView {
             frame: CefFrame,
             httpStatusCode: Int,
         ) {
+            if (frame.url == CefHelper.INITIALIZATION_URL) return
             logger.trace { "Load event: ${frame.name} - ${frame.url}" }
             if (httpStatusCode > 0 && frame.isMain) handleLoad(frame.url, httpStatusCode)
             flush()
@@ -205,6 +213,7 @@ class KcefWebView {
             errorText: String,
             failedUrl: String,
         ) {
+            if (failedUrl == CefHelper.INITIALIZATION_URL) return
             if (frame.isMain) handleLoad(failedUrl, 0, errorText)
         }
     }
@@ -280,6 +289,7 @@ class KcefWebView {
     }
 
     fun destroy() {
+        initialUrls.clear()
         flush()
         browser?.close(true)
         browser?.dispose()
@@ -294,11 +304,13 @@ class KcefWebView {
         browser =
             kcefClient!!
                 .createBrowser(
-                    url,
+                    // Start the page only after the asynchronous user-agent override completes.
+                    CefHelper.INITIALIZATION_URL,
                     CefRendering.CefRenderingWithHandler(renderHandler, JPanel()),
                     false,
                     // NOTE: with a context, we don't seem to be getting any cookies
                 ).apply {
+                    initialUrls[this] = url
                     // NOTE: Without this, we don't seem to be receiving any events
                     createImmediately()
                 }
